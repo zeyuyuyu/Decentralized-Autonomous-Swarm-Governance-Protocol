@@ -1,110 +1,102 @@
-import subprocess
-from typing import Dict, List, Optional
-from dataclasses import dataclass
-import re
+import git
+import datetime
+from collections import defaultdict
+from typing import Dict, List, Tuple
 
-@dataclass
-class DiffMetrics:
-    files_changed: int
-    insertions: int 
-    deletions: int
-    semantic_score: float
-    risk_level: str
-    affected_components: List[str]
-
-class GitDiffAnalyzer:
+class GitAnalyzer:
     def __init__(self, repo_path: str):
-        self.repo_path = repo_path
-        self.risk_patterns = {
-            'high': [r'password', r'token', r'secret', r'auth', r'credential'],
-            'medium': [r'config', r'database', r'api', r'security'],
-            'low': [r'readme', r'docs', r'comment', r'format']
-        }
+        self.repo = git.Repo(repo_path)
+        self.reputation_scores = defaultdict(float)
         
-    def get_diff_stats(self, commit_range: Optional[str] = None) -> DiffMetrics:
-        """Analyzes git diff and returns statistical and semantic metrics"""
-        cmd = ['git', '-C', self.repo_path, 'diff', '--stat']
-        if commit_range:
-            cmd.append(commit_range)
+    def calculate_contributor_reputation(self) -> Dict[str, float]:
+        '''Calculate reputation scores for all contributors based on:
+        - Commit frequency
+        - Code longevity
+        - Review participation
+        - Issue engagement
+        '''
+        commits = list(self.repo.iter_commits('master'))
+        
+        for commit in commits:
+            author_email = commit.author.email
             
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        # Parse basic metrics
-        stats = result.stdout.strip().split('\n')[-1]
-        files = int(re.search(r'(\d+) files? changed', stats).group(1))
-        insertions = int(re.search(r'(\d+) insertion', stats).group(1)) if 'insertion' in stats else 0
-        deletions = int(re.search(r'(\d+) deletion', stats).group(1)) if 'deletion' in stats else 0
-
-        # Get full diff for semantic analysis
-        diff = subprocess.run(['git', '-C', self.repo_path, 'diff', '--unified=0'],
-                            capture_output=True, text=True).stdout
-
-        # Calculate semantic risk score and affected components
-        risk_score = self._calculate_risk_score(diff)
-        components = self._identify_affected_components(diff)
-        
-        risk_level = self._classify_risk_level(risk_score)
-        
-        return DiffMetrics(
-            files_changed=files,
-            insertions=insertions,
-            deletions=deletions,
-            semantic_score=risk_score,
-            risk_level=risk_level,
-            affected_components=components
-        )
-    
-    def _calculate_risk_score(self, diff_content: str) -> float:
-        """Calculate a risk score based on pattern matching and heuristics"""
-        score = 0.0
-        
-        for risk_level, patterns in self.risk_patterns.items():
-            weight = 1.0 if risk_level == 'high' else 0.5 if risk_level == 'medium' else 0.2
+            # Base score from commit
+            self._add_commit_score(commit)
             
-            for pattern in patterns:
-                matches = len(re.findall(pattern, diff_content, re.IGNORECASE))
-                score += matches * weight
+            # Code longevity score
+            self._add_longevity_score(commit)
+            
+            # Review participation score
+            self._add_review_score(commit)
+            
+        return dict(self.reputation_scores)
+
+    def _add_commit_score(self, commit) -> None:
+        '''Add points based on commit size and frequency'''
+        author_email = commit.author.email
+        
+        # Points for commit size (measured by changed lines)
+        try:
+            stats = commit.stats.total
+            changes = stats['insertions'] + stats['deletions']
+            size_score = min(changes / 100.0, 5.0)  # Cap at 5 points
+            self.reputation_scores[author_email] += size_score
+        except:
+            pass
+            
+        # Points for recent activity
+        days_old = (datetime.datetime.now() - commit.authored_datetime).days
+        recency_score = max(5.0 - (days_old / 30.0), 0)  # More points for recent commits
+        self.reputation_scores[author_email] += recency_score
+
+    def _add_longevity_score(self, commit) -> None:
+        '''Add points based on how long code survives without being modified'''
+        author_email = commit.author.email
+        
+        try:
+            # Get blame info for changed files
+            for file in commit.stats.files:
+                blame = self.repo.blame('HEAD', file)
+                for blame_commit, lines in blame:
+                    if blame_commit.author.email == author_email:
+                        days_survived = (datetime.datetime.now() - blame_commit.authored_datetime).days
+                        longevity_score = min(days_survived / 180.0, 10.0)  # Cap at 10 points
+                        self.reputation_scores[author_email] += longevity_score
+        except:
+            pass
+
+    def _add_review_score(self, commit) -> None:
+        '''Add points for code review participation'''
+        author_email = commit.author.email
+        
+        try:
+            # Check commit message for review references
+            msg = commit.message.lower()
+            if 'review' in msg or 'reviewed' in msg or 'reviewing' in msg:
+                self.reputation_scores[author_email] += 2.0
                 
-        return min(score, 10.0)  # Normalize to 0-10 scale
-    
-    def _identify_affected_components(self, diff_content: str) -> List[str]:
-        """Identify main components affected by changes"""
-        components = set()
-        
-        # Extract file paths from diff headers
-        for line in diff_content.split('\n'):
-            if line.startswith('+++') or line.startswith('---'):
-                path = line[4:].strip()
-                if path and not path.startswith('/dev/null'):
-                    # Extract component from path (e.g., src/auth/login.py -> auth)
-                    parts = path.split('/')
-                    if len(parts) > 1:
-                        components.add(parts[1])
-                        
-        return sorted(list(components))
-    
-    def _classify_risk_level(self, score: float) -> str:
-        """Classify risk level based on semantic score"""
-        if score >= 7.0:
-            return 'HIGH'
-        elif score >= 4.0:
-            return 'MEDIUM'
-        else:
-            return 'LOW'
+            # Check for co-authored commits
+            if 'co-authored-by' in msg:
+                self.reputation_scores[author_email] += 3.0
+        except:
+            pass
 
-    def get_commit_summary(self, commit_hash: str) -> Dict[str, str]:
-        """Get detailed commit information"""
-        cmd = ['git', '-C', self.repo_path, 'show', '-s',
-               '--format=%h%n%an%n%ae%n%at%n%s%n%b', commit_hash]
+    def get_top_contributors(self, limit: int = 10) -> List[Tuple[str, float]]:
+        '''Return top N contributors by reputation score'''
+        sorted_scores = sorted(
+            self.reputation_scores.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        return sorted_scores[:limit]
+
+    def get_reputation_percentile(self, email: str) -> float:
+        '''Get contributor's reputation percentile'''
+        if email not in self.reputation_scores:
+            return 0.0
+            
+        score = self.reputation_scores[email]
+        total_contributors = len(self.reputation_scores)
+        below_score = sum(1 for s in self.reputation_scores.values() if s <= score)
         
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        lines = result.stdout.strip().split('\n')
-        
-        return {
-            'hash': lines[0],
-            'author': lines[1],
-            'email': lines[2],
-            'timestamp': lines[3],
-            'subject': lines[4],
-            'body': '\n'.join(lines[5:]) if len(lines) > 5 else ''
-        }
+        return (below_score / total_contributors) * 100.0
