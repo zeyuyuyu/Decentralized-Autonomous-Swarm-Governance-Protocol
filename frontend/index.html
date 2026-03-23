@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hive - Your AI Agent Command Center</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+</head>
+<body class="bg-gray-900 text-white">
+    <div id="app" class="min-h-screen">
+        <!-- Engaging Header with Gamification Elements -->
+        <header class="bg-gradient-to-r from-purple-600 to-blue-500 p-4">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-2xl font-bold">🐝 Hive</h1>
+                    <div class="bg-white/20 rounded-full px-4 py-1">
+                        <span class="text-sm">Level: <span id="userLevel" class="font-bold">5</span></span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="h-2 w-32 bg-white/20 rounded-full overflow-hidden">
+                            <div id="xpProgress" class="h-full bg-yellow-400" style="width: 75%"></div>
+                        </div>
+                        <span class="ml-2 text-sm">750/1000 XP</span>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="animate-pulse">
+                        <span class="text-yellow-300">🏆</span>
+                        <span id="hiveCoins" class="font-bold">2,450</span>
+                    </div>
+                    <button class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded-full text-sm font-bold transition-all" onclick="shareAchievement()">Share & Earn 500 HC</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard -->
+        <main class="container mx-auto p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Agent Marketplace -->
+                <div class="bg-gray-800 rounded-xl p-6 transform hover:scale-105 transition-all">
+                    <h2 class="text-xl font-bold mb-4">🎮 Agent Marketplace</h2>
+                    <div class="space-y-4">
+                        <div class="bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-600">
+                            <div class="flex justify-between items-center">
+                                <span>🤖 Super Agent</span>
+                                <span class="text-yellow-300">1000 HC</span>
+                            </div>
+                            <div class="text-sm text-gray-400 mt-2">Unlock special abilities!</div>
+                        </div>
+                        <div class="bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-600">
+                            <div class="flex justify-between items-center">
+                                <span>🎯 Task Master</span>
+                                <span class="text-yellow-300">750 HC</span>
+                            </div>
+                            <div class="text-sm text-gray-400 mt-2">Complete tasks faster!</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Social Feed -->
+                <div class="bg-gray-800 rounded-xl p-6">
+                    <h2 class="text-xl font-bold mb-4">👥 Community Feed</h2>
+                    <div class="space-y-4 max-h-96 overflow-y-auto">
+                        <div class="bg-gray-700 rounded-lg p-4">
+                            <div class="flex items-center space-x-3">
+                                <img src="https://api.dicebear.com/6.x/avataaars/svg?seed=Alice" class="w-10 h-10 rounded-full">
+                                <div>
+                                    <div class="font-bold">Alice</div>
+                                    <div class="text-sm text-gray-400">Just automated my entire workflow! 🚀</div>
+                                </div>
+                            </div>
+                            <div class="mt-2 flex space-x-2">
+                                <button class="text-sm text-gray-400 hover:text-white">❤️ Like</button>
+                                <button class="text-sm text-gray-400 hover:text-white">💬 Comment</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Achievements & Challenges -->
+                <div class="bg-gray-800 rounded-xl p-6">
+                    <h2 class="text-xl font-bold mb-4">🏆 Daily Challenges</h2>
+                    <div class="space-y-4">
+                        <div class="bg-gray-700 rounded-lg p-4">
+                            <div class="flex justify-between items-center">
+                                <span>Create 3 Agents</span>
+                                <span class="text-yellow-300">+200 HC</span>
+                            </div>
+                            <div class="h-2 w-full bg-gray-600 rounded-full mt-2">
+                                <div class="h-full bg-green-500 rounded-full" style="width: 66%"></div>
+                            </div>
+                            <div class="text-sm text-gray-400 mt-1">2/3 Complete</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Floating Achievement Notifications -->
+        <div id="achievements" class="fixed bottom-4 right-4 space-y-2"></div>
+    </div>
+
+    <script>
+        // Gamification Functions
+        function shareAchievement() {
+            const shareUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent('🚀 I just leveled up my AI agents on Hive! Join me and get 500 Hive Coins free: https://hive.ai');
+            window.open(shareUrl, '_blank');
+            showAchievement('Shared with friends! +500 HC 🎉');
+            updateCoins(500);
+        }
+
+        function showAchievement(message) {
+            const achievement = document.createElement('div');
+            achievement.className = 'bg-green-500 text-white px-4 py-2 rounded-lg animate__animated animate__fadeInUp';
+            achievement.textContent = message;
+            document.getElementById('achievements').appendChild(achievement);
+            setTimeout(() => achievement.remove(), 3000);
+        }
+
+        function updateCoins(amount) {
+            const coinsEl = document.getElementById('hiveCoins');
+            const currentCoins = parseInt(coinsEl.textContent.replace(',', ''));
+            coinsEl.textContent = (currentCoins + amount).toLocaleString();
+        }
+
+        // Simulate real-time updates
+        setInterval(() => {
+            const randomMessages = [
+                'Sarah just created a new agent! 🎉',
+                'John earned 1000 HC! 💰',
+                'New challenge available! 🎯'
+            ];
+            showAchievement(randomMessages[Math.floor(Math.random() * randomMessages.length)]);
+        }, 15000);
+    </script>
+</body>
+</html>
